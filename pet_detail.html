@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.4, maximum-scale=0.4, user-scalable=no">
+    <title>Pet Detail - Virtual Pets</title>
+
+    <!-- Cargar la librería Phaser -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            overflow: hidden;
+        }
+
+        /* Loader */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        /* Contenedor principal */
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            width: 100%;
+            flex-grow: 1;
+        }
+
+        /* Pet name title */
+        #petName {
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        /* Game container */
+        #game-container {
+            text-align: center;
+        }
+
+        /* Botones */
+        .btn-back {
+            margin-top: 10px;
+        }
+
+        /* Error message */
+        .error-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .error-container.show {
+            display: flex;
+        }
+
+        /* Ajuste para pantallas pequeñas (móviles) */
+        @media (max-width: 768px) {
+            .container {
+                padding: 5%;
+            }
+        }
+
+        /* Ajustes para pantallas grandes */
+        @media (min-width: 769px) {
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loader -->
+    <div id="loader">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Error container -->
+    <div class="error-container" id="errorContainer">
+        <h1>❌ Error</h1>
+        <p id="errorMessage">No se pudo cargar la mascota</p>
+        <a href="dashboard.html" class="btn btn-primary">Volver al Dashboard</a>
+    </div>
+
+    <!-- Contenedor principal -->
+    <div class="container" id="mainContainer" style="display: none;">
+        <h1 class="text-center text-white" id="petName">Loading...</h1>
+        <br>
+        
+        <!-- Contenedor del juego con datos de la mascota -->
+        <div id="game-container"
+             data-pet-id=""
+             data-pet-image=""
+             data-hunger=""
+             data-energy=""
+             data-happiness=""
+             data-is-sleeping=""
+             class="text-center">
+        </div>
+        
+        <br>
+        <a href="pet_dashboard.html" class="btn btn-primary btn-back">Mis mascotas</a>
+    </div>
+        <script src="config.js"></script>
+
+    <script>
+    const API_URL = CONFIG.API_URL; 
+    let petData = null;
+    let phaserGameInstance = null;
+
+    function showLoader() {
+        document.getElementById('loader').style.display = 'flex';
+    }
+
+    function hideLoader() {
+        document.getElementById('loader').style.display = 'none';
+    }
+
+    function showError(message) {
+        document.getElementById('errorMessage').textContent = message;
+        document.getElementById('errorContainer').classList.add('show');
+        document.getElementById('mainContainer').style.display = 'none';
+        hideLoader();
+    }
+
+    function checkAuth() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'index.html';
+            return false;
+        }
+        return true;
+    }
+
+    function getAuthHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': `Token ${localStorage.getItem('token')}`
+        };
+    }
+
+    function handleAuthError(response) {
+        if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+            return true;
+        }
+        return false;
+    }
+
+    function getPetIdFromUrl() {
+        let urlParams = new URLSearchParams(window.location.search);
+        let petId = urlParams.get('id');
+        
+        if (!petId && window.location.hash) {
+            const hash = window.location.hash.substring(1);
+            urlParams = new URLSearchParams(hash);
+            petId = urlParams.get('id');
+        }
+        
+        if (!petId) {
+            petId = localStorage.getItem('currentPetId');
+        }
+        
+        return petId;
+    }
+
+    async function loadPetData() {
+        const petId = getPetIdFromUrl();
+        
+        if (!petId) {
+            showError('ID de mascota no proporcionado');
+            return;
+        }
+
+        showLoader();
+
+        try {
+            const response = await fetch(`${API_URL}/pets/api/pets/${petId}/`, {
+                headers: getAuthHeaders()
+            });
+
+            if (!response.ok) {
+                if (handleAuthError(response)) return;
+                
+                if (response.status === 404) {
+                    showError('Mascota no encontrada');
+                } else if (response.status === 403) {
+                    showError('No tienes permiso para ver esta mascota');
+                } else {
+                    showError('Error al cargar la mascota');
+                }
+                return;
+            }
+
+            petData = await response.json();
+          
+            displayPetData(petData);
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Error de conexión con el servidor');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async function displayPetData(pet) {
+        
+        document.getElementById('petName').textContent = pet.name;
+        document.title = pet.name + ' - Virtual Pets';
+
+        const gameContainer = document.getElementById('game-container');
+        gameContainer.setAttribute('data-pet-id', pet.id);
+        gameContainer.setAttribute('data-pet-image', pet.current_image);
+        gameContainer.setAttribute('data-hunger', pet.hunger);
+        gameContainer.setAttribute('data-energy', pet.energy);
+        gameContainer.setAttribute('data-happiness', pet.happiness);
+        gameContainer.setAttribute('data-is-sleeping', pet.is_sleeping || false);
+
+    
+
+        window.petData = pet;
+        window.API_URL = API_URL;
+        window.getAuthHeaders = getAuthHeaders;
+
+        localStorage.removeItem('currentPetId');
+
+        document.getElementById('mainContainer').style.display = 'flex';
+
+        // Esperar a que el DOM se actualice completamente
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+       
+        
+        // Verificar que los atributos estén en el DOM antes de iniciar Phaser
+        const verify = document.getElementById('game-container');
+       
+
+        // Importar y crear el juego de Phaser
+        initPhaserGame();
+    }
+
+    async function initPhaserGame() {
+        try {
+            // Importar dinámicamente los módulos de Phaser
+            const PetSceneModule = await import('./js/pet_scene.js');
+            const MinigameSceneModule = await import('./js/minigame_scene.js');
+            const PlatformGameSceneModule = await import('./js/platform_game_scene.js');
+            
+            const PetScene = PetSceneModule.default;
+            const MinigameScene = MinigameSceneModule.default;
+            const PlatformGameScene = PlatformGameSceneModule.default; 
+
+            // Configuración de Phaser
+            const config = {
+                type: Phaser.AUTO,
+                width: 800,
+                height: 600,
+                parent: 'game-container',
+                backgroundColor: '#000000',
+                scene: [PetScene, MinigameScene,PlatformGameScene],
+                physics: {
+                    default: 'arcade',
+                    arcade: {
+                        gravity: { y: 800 },
+                        debug: true
+                    }
+                }
+            };
+
+            // Crear la instancia del juego
+            phaserGameInstance = new Phaser.Game(config);
+    
+        } catch (error) {
+            console.error('Error initializing Phaser:', error);
+            showError('Error al inicializar el juego');
+        }
+    }
+
+    window.updatePetData = async function(petId) {
+        try {
+            const response = await fetch(`${API_URL}/pets/api/pets/${petId}/`, {
+                headers: getAuthHeaders()
+            });
+
+            if (response.ok) {
+                const updatedPet = await response.json();
+                window.petData = updatedPet;
+                
+                const gameContainer = document.getElementById('game-container');
+                gameContainer.setAttribute('data-hunger', updatedPet.hunger);
+                gameContainer.setAttribute('data-energy', updatedPet.energy);
+                gameContainer.setAttribute('data-happiness', updatedPet.happiness);
+                gameContainer.setAttribute('data-pet-image', updatedPet.current_image);
+                
+                return updatedPet;
+            }
+        } catch (error) {
+            console.error('Error updating pet data:', error);
+        }
+        return null;
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!checkAuth()) return;
+        loadPetData();
+    });
+</script>
+   
+
+    <!-- Scripts del juego Phaser - Se cargan después de que los datos estén listos -->
+
+    <script type="module" src="js/pet_scene.js"></script>
+    <script type="module" src="js/minigame_scene.js"></script>
+
+
+</body>
+</html>

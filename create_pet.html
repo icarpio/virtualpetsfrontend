@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.4, maximum-scale=0.4, user-scalable=no">
+    <title>Nueva Mascota - Virtual Pets</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        /* Loader */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        /* Navbar */
+        .navbar-custom {
+            background-color: #6441A5;
+        }
+
+        .navbar-custom .navbar-brand,
+        .navbar-custom .nav-link {
+            color: white !important;
+        }
+
+        .navbar-custom .nav-link:hover {
+            color: #ffcc03 !important;
+        }
+
+        .btn-logout {
+            background-color: #ffcc03;
+            color: white;
+            border: none;
+        }
+
+        .btn-logout:hover {
+            background-color: #e6b800;
+            color: white;
+        }
+
+        /* Form container */
+        .form-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        /* Preview de mascota */
+        .pet-preview {
+            text-align: center;
+            margin-top: 2rem;
+            padding: 2rem;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .pet-preview img {
+            max-width: 200px;
+            height: 200px;
+            object-fit: contain;
+            margin-bottom: 1rem;
+        }
+
+        .pet-preview h5 {
+            color: #6441A5;
+        }
+
+        /* Alert styles */
+        .alert {
+            border-radius: 0.375rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loader -->
+    <div id="loader">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="pet_dashboard.html">
+                <strong>🐾 Virtual Pets</strong>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="create_pet.html">Create Pet</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <span class="nav-link" id="userInfo">Loading...</span>
+                    </li>
+                    <li class="nav-item">
+                        <button class="btn btn-logout btn-sm" id="logoutBtn">Logout</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenido principal -->
+    <div class="container mt-5">
+        <div class="form-container">
+            <h1 class="text-center mb-4">Elige tu mascota</h1>
+            
+            <!-- Alertas -->
+            <div id="successAlert" class="alert alert-success d-none" role="alert"></div>
+            <div id="errorAlert" class="alert alert-danger d-none" role="alert"></div>
+
+            <form id="createPetForm">
+                <div class="mb-3">
+                    <label for="pet_base" class="form-label">Selecciona una mascota:</label>
+                    <select name="pet_base" id="pet_base" class="form-select" required>
+                        <option value="">Cargando opciones...</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="pet_name" class="form-label">Nombre de tu mascota:</label>
+                    <input type="text" name="pet_name" id="pet_name" class="form-control" required 
+                           placeholder="Ej: Firulais, Luna, Max...">
+                </div>
+
+                <!-- Preview de la mascota seleccionada -->
+                <div class="pet-preview d-none" id="petPreview">
+                    <img id="previewImage" src="" alt="Preview">
+                    <h5 id="previewName"></h5>
+                    <p class="text-muted" id="previewDescription"></p>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg">Crear mascota</button>
+                </div>
+            </form>
+
+            <div class="text-center mt-4">
+                <a href="pet_dashboard.html" class="btn btn-secondary">Volver a mis mascotas</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="config.js"></script>
+    
+    <script>
+        const API_URL = CONFIG.API_URL; 
+        let petBases = [];
+
+        // Funciones de utilidad
+        function showLoader() {
+            document.getElementById('loader').style.display = 'flex';
+        }
+
+        function hideLoader() {
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'index.html';
+                return false;
+            }
+            return true;
+        }
+
+        function getAuthHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Token ${localStorage.getItem('token')}`
+            };
+        }
+
+        function handleAuthError(response) {
+            if (response.status === 401 || response.status === 403) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = 'index.html';
+                return true;
+            }
+            return false;
+        }
+
+        // Cargar información del usuario
+        async function loadUserInfo() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            document.getElementById('userInfo').textContent = `Hola, ${user.username || 'Usuario'}!`;
+        }
+
+        // Cargar opciones de mascotas base
+        async function loadPetBases() {
+            showLoader();
+            try {
+                const response = await fetch(`${API_URL}/pets/api/pet-bases/`, {
+                    headers: getAuthHeaders()
+                });
+
+                if (!response.ok) {
+                    if (handleAuthError(response)) return;
+                    throw new Error('Error al cargar tipos de mascotas');
+                }
+
+                petBases = await response.json();
+                displayPetBases(petBases);
+            } catch (error) {
+                console.error('Error:', error);
+                const errorAlert = document.getElementById('errorAlert');
+                errorAlert.textContent = 'Error al cargar las opciones de mascotas';
+                errorAlert.classList.remove('d-none');
+            } finally {
+                hideLoader();
+            }
+        }
+
+        // Mostrar opciones en el select
+        function displayPetBases(bases) {
+            const select = document.getElementById('pet_base');
+            
+            if (bases.length === 0) {
+                select.innerHTML = '<option value="">No hay opciones disponibles</option>';
+                return;
+            }
+
+            select.innerHTML = '<option value="">-- Selecciona una mascota --</option>' +
+                bases.map(base => `
+                    <option value="${base.id}" 
+                            data-image="${base.base_image}" 
+                            data-name="${base.name}"
+                            data-description="${base.description || ''}">
+                        ${base.name}
+                    </option>
+                `).join('');
+        }
+
+        // Mostrar preview de la mascota seleccionada
+        function showPetPreview() {
+            const select = document.getElementById('pet_base');
+            const selectedOption = select.options[select.selectedIndex];
+            const preview = document.getElementById('petPreview');
+
+            if (select.value) {
+                const image = selectedOption.getAttribute('data-image');
+                const name = selectedOption.getAttribute('data-name');
+                const description = selectedOption.getAttribute('data-description');
+
+                document.getElementById('previewImage').src = image;
+                document.getElementById('previewName').textContent = name;
+                document.getElementById('previewDescription').textContent = description || 'Una adorable mascota virtual';
+                preview.classList.remove('d-none');
+            } else {
+                preview.classList.add('d-none');
+            }
+        }
+
+        // Crear mascota
+        async function createPet(e) {
+            e.preventDefault();
+
+            // Limpiar alertas previas
+            document.getElementById('successAlert').classList.add('d-none');
+            document.getElementById('errorAlert').classList.add('d-none');
+
+            const petBaseId = document.getElementById('pet_base').value;
+            const petName = document.getElementById('pet_name').value.trim();
+
+            if (!petBaseId || !petName) {
+                const errorAlert = document.getElementById('errorAlert');
+                errorAlert.textContent = 'Por favor completa todos los campos';
+                errorAlert.classList.remove('d-none');
+                return;
+            }
+
+            showLoader();
+
+            try {
+                const response = await fetch(`${API_URL}/pets/api/pets/create/`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        pet_base: petBaseId,
+                        pet_name: petName
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Mostrar mensaje de éxito
+                    const successAlert = document.getElementById('successAlert');
+                    successAlert.textContent = `¡${petName} ha sido creado exitosamente!`;
+                    successAlert.classList.remove('d-none');
+
+                    // Limpiar formulario
+                    document.getElementById('createPetForm').reset();
+                    document.getElementById('petPreview').classList.add('d-none');
+
+                    // Redirigir al dashboard después de 2 segundos
+                    setTimeout(() => {
+                        window.location.href = 'pet_dashboard.html';
+                    }, 2000);
+                } else {
+                    if (handleAuthError(response)) return;
+                    
+                    const errorAlert = document.getElementById('errorAlert');
+                    errorAlert.textContent = data.error || 'Error al crear la mascota';
+                    errorAlert.classList.remove('d-none');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                const errorAlert = document.getElementById('errorAlert');
+                errorAlert.textContent = 'Error de conexión con el servidor';
+                errorAlert.classList.remove('d-none');
+            } finally {
+                hideLoader();
+            }
+        }
+
+        // Logout
+        async function logout() {
+            if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+                showLoader();
+                
+                try {
+                    await fetch(`${API_URL}/api/auth/logout/`, {
+                        method: 'POST',
+                        headers: getAuthHeaders()
+                    });
+                } catch (error) {
+                    console.error('Error en logout:', error);
+                } finally {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    window.location.href = 'index.html';
+                }
+            }
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar autenticación
+            if (!checkAuth()) return;
+
+            // Cargar datos
+            loadUserInfo();
+            loadPetBases();
+
+            // Event listeners
+            document.getElementById('pet_base').addEventListener('change', showPetPreview);
+            document.getElementById('createPetForm').addEventListener('submit', createPet);
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.4, maximum-scale=0.4, user-scalable=no">
+    <title>Mis Mascotas - Virtual Pets</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        /* Loader */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        /* Navbar */
+        .navbar-custom {
+            background-color: #6441A5;
+        }
+
+        .navbar-custom .navbar-brand,
+        .navbar-custom .nav-link {
+            color: white !important;
+        }
+
+        .navbar-custom .nav-link:hover {
+            color: #ffcc03 !important;
+        }
+
+        .btn-logout {
+            background-color: #ffcc03;
+            color: white;
+            border: none;
+        }
+
+        .btn-logout:hover {
+            background-color: #e6b800;
+            color: white;
+        }
+
+        /* Cards de mascotas */
+        .pet-card {
+            transition: transform 0.2s;
+        }
+
+        .pet-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .pet-image {
+            max-width: 100%;
+            height: 200px;
+            object-fit: contain;
+            background-color: #f8f9fa;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .empty-state img {
+            width: 200px;
+            opacity: 0.5;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loader -->
+    <div id="loader">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="dashboard.html">
+                <strong>🐾 Virtual Pets</strong>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="dashboard.html">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="create_pet.html">Create Pet</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <span class="nav-link" id="userInfo">Loading...</span>
+                    </li>
+                    <li class="nav-item">
+                        <button class="btn btn-logout btn-sm" id="logoutBtn">Logout</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenido principal -->
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+            <h1>Mis Mascotas</h1>
+            <div>
+                <button type="button" class="btn btn-warning me-2 mb-2" id="sleepAllBtn">Dormir todas</button>
+                <button type="button" class="btn btn-info me-2 mb-2" id="wakeUpAllBtn">Despertar todas</button>
+                <a href="create_pet.html" class="btn btn-success mb-2">Nueva Mascota</a>
+            </div>
+        </div>
+
+        <!-- Contenedor de mascotas -->
+        <div class="row" id="petsContainer">
+            <!-- Las mascotas se cargarán aquí dinámicamente -->
+        </div>
+
+        <!-- Empty state (sin mascotas) -->
+        <div class="empty-state d-none" id="emptyState">
+            <h3>No tienes mascotas</h3>
+            <p class="text-muted">¡Crea tu primera mascota para comenzar!</p>
+            <a href="create_pet.html" class="btn btn-success btn-lg">Crear Mascota</a>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación de eliminación -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmDeleteModalLabel">Eliminar Mascota</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    ¿Estás seguro de que deseas eliminar esta mascota? Esta acción no se puede deshacer.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteButton">Eliminar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="config.js"></script>
+<script>
+      
+    const API_URL = CONFIG.API_URL; 
+    let currentPetId = null;
+    let deleteModal = null;
+
+    // Funciones de utilidad
+    function showLoader() {
+        document.getElementById('loader').style.display = 'flex';
+    }
+
+    function hideLoader() {
+        document.getElementById('loader').style.display = 'none';
+    }
+
+    function checkAuth() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'index.html';
+            return false;
+        }
+        return true;
+    }
+
+    function getAuthHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': `Token ${localStorage.getItem('token')}`
+        };
+    }
+
+    function handleAuthError(response) {
+        if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+            return true;
+        }
+        return false;
+    }
+
+    // Cargar información del usuario
+    async function loadUserInfo() {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        document.getElementById('userInfo').textContent = `Hola, ${user.username || 'Usuario'}!`;
+    }
+
+    // Cargar mascotas
+    async function loadPets() {
+        showLoader();
+        try {
+            const response = await fetch(`${API_URL}/pets/api/pets/`, {
+                headers: getAuthHeaders()
+            });
+
+            if (!response.ok) {
+                if (handleAuthError(response)) return;
+                throw new Error('Error al cargar mascotas');
+            }
+
+            const pets = await response.json();
+            console.log('Mascotas cargadas:', pets); // Debug
+            displayPets(pets);
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al cargar las mascotas');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    // Mostrar mascotas en el DOM
+    function displayPets(pets) {
+        const container = document.getElementById('petsContainer');
+        const emptyState = document.getElementById('emptyState');
+
+        if (pets.length === 0) {
+            container.innerHTML = '';
+            emptyState.classList.remove('d-none');
+            return;
+        }
+
+        emptyState.classList.add('d-none');
+        container.innerHTML = pets.map(pet => `
+            <div class="col-md-4 mb-4">
+                <div class="card pet-card">
+                    <img 
+                    src="${pet.is_sleeping 
+                        ? (pet.current_image.startsWith('/static/') ? API_URL + '/static/images/sleeping.png' : pet.current_image)
+                        : (pet.current_image.startsWith('/static/') ? API_URL + pet.current_image : pet.current_image)
+                    }" 
+                    class="card-img-top pet-image" 
+                    alt="${pet.name}">
+
+                    <div class="card-body">
+                        <h5 class="card-title">${pet.name} (${pet.pet_base_name || 'Mascota'})</h5>
+                        <p class="card-text mb-1">Hambre: ${pet.hunger}</p>
+                        <p class="card-text mb-1">Energía: ${pet.energy}</p>
+                        <p class="card-text mb-3">Felicidad: ${pet.happiness}</p>
+
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-info btn-sm" onclick="goToPetDetail(${pet.id})">Detalle</button>
+                            <button type="button" class="btn btn-danger btn-sm" onclick="confirmDelete(${pet.id})">
+                                Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Navegar al detalle de la mascota
+window.goToPetDetail = function(petId) {
+    console.log('Navegando al detalle de la mascota con ID:', petId);
+    // Usar hash routing para evitar problemas con el servidor
+    window.location.href = `pet_detail.html#id=${petId}`;
+};
+
+    // Confirmar eliminación
+    window.confirmDelete = function(petId) {
+        currentPetId = petId;
+        deleteModal.show();
+    };
+
+    // Eliminar mascota
+    async function deletePet() {
+        if (!currentPetId) return;
+
+        showLoader();
+        try {
+            const response = await fetch(`${API_URL}/pets/api/pets/${currentPetId}/delete/`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+
+            if (!response.ok) {
+                if (handleAuthError(response)) return;
+                throw new Error('Error al eliminar mascota');
+            }
+
+            deleteModal.hide();
+            await loadPets();
+            alert('Mascota eliminada exitosamente');
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al eliminar la mascota');
+        } finally {
+            hideLoader();
+            currentPetId = null;
+        }
+    }
+
+    // Dormir todas las mascotas
+    async function sleepAllPets() {
+        showLoader();
+        try {
+            const response = await fetch(`${API_URL}/pets/api/pets/sleep-all/`, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+
+            if (!response.ok) {
+                if (handleAuthError(response)) return;
+                throw new Error('Error al dormir mascotas');
+            }
+
+            await loadPets();
+            alert('Todas las mascotas están durmiendo');
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al dormir las mascotas');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    // Despertar todas las mascotas
+    async function wakeUpAllPets() {
+        showLoader();
+        try {
+            const response = await fetch(`${API_URL}/api/pets/wake-up-all/`, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+
+            if (!response.ok) {
+                if (handleAuthError(response)) return;
+                throw new Error('Error al despertar mascotas');
+            }
+
+            await loadPets();
+            alert('Todas las mascotas han despertado');
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al despertar las mascotas');
+        } finally {
+            hideLoader();
+        }
+    }
+
+    // Logout
+    async function logout() {
+        if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+            showLoader();
+            
+            try {
+                await fetch(`${API_URL}/accounts/api/auth/logout/`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+            } catch (error) {
+                console.error('Error en logout:', error);
+            } finally {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = 'index.html';
+            }
+        }
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        // Verificar autenticación
+        if (!checkAuth()) return;
+
+        // Inicializar modal
+        deleteModal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+
+        // Cargar datos
+        loadUserInfo();
+        loadPets();
+
+        // Event listeners
+        document.getElementById('confirmDeleteButton').addEventListener('click', deletePet);
+        document.getElementById('sleepAllBtn').addEventListener('click', sleepAllPets);
+        document.getElementById('wakeUpAllBtn').addEventListener('click', wakeUpAllPets);
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+    });
+</script>
+</body>
+</html>
+
+
+
