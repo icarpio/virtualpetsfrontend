@@ -49,7 +49,7 @@ export default class MinigameScene extends Phaser.Scene {
         this.add.image(400, 300, 'minigameBg').setScale(1.5);
         
         // Mascota - usar 'petMinigame' en lugar de this.petKey
-        this.pet = this.add.image(400, 340, 'petMinigame').setScale(1.5);
+        this.pet = this.add.image(400, 340, 'petMinigame').setScale(0.9);
 
         // Título
         this.add.text(310, 80, '¡PET SLOT!', {

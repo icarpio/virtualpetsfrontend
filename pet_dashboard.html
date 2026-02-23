@@ -352,7 +352,7 @@ window.goToPetDetail = function(petId) {
     async function wakeUpAllPets() {
         showLoader();
         try {
-            const response = await fetch(`${API_URL}/api/pets/wake-up-all/`, {
+            const response = await fetch(`${API_URL}/pets/api/pets/wake-up-all/`, {
                 method: 'POST',
                 headers: getAuthHeaders()
             });
